@@ -21,14 +21,15 @@ the parallel and perpendicular Non-Gaussianity.
 The estimation of these properties from noisy DWIs requires that the
 fitting of the MAPMRI basis is regularized. We will show that this can
 be done using both constraining the diffusion propagator to positive
-values [Ozarslan2013]_ and analytic Laplacian Regularization [Fick2016a]_.
+values [Ozarslan2013]_ and analytic Laplacian Regularization (MAPL)
+[Fick2016a]_.
 
 First import the necessary modules:
 """
 
 from dipy.reconst import mapmri
 from dipy.viz import window, actor
-from dipy.data import fetch_cenir_multib, read_cenir_multib, get_sphere
+from dipy.data import fetch_cfin_multib, read_cfin_dwi, get_sphere
 from dipy.core.gradients import gradient_table
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -37,17 +38,13 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 Download and read the data for this tutorial.
 
 MAPMRI requires multi-shell data, to properly fit the radial part of the basis.
-The total size of the downloaded data is 1760 MBytes, however you only need to
-fetch it once. Parameter ``with_raw`` of function ``fetch_cenir_multib`` is set
-to ``False`` to only download eddy-current/motion corrected data:.
+The total size of the downloaded data is 187.66 MBytes, however you only need
+to fetch it once.
 """
 
-fetch_cenir_multib(with_raw=False)
+fetch_cfin_multib()
 
 """
-For this example we select only the shell with b-values equal to the one of the
-Human Connectome Project (HCP).
-
 ``data`` contains the voxel data and ``gtab`` contains a ``GradientTable``
 object (gradient information e.g. b-values). For example, to show the b-values
 it is possible to write::
@@ -59,8 +56,7 @@ explicitly state the ``big_delta`` and ``small_delta`` parameters in the
 gradient table.
 """
 
-bvals = [1000, 2000, 3000]
-img, gtab = read_cenir_multib(bvals)
+img, gtab = read_cfin_dwi()
 big_delta = 0.0365  # seconds
 small_delta = 0.0157  # seconds
 gtab = gradient_table(bvals=gtab.bvals, bvecs=gtab.bvecs,
