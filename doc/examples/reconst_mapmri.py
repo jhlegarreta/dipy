@@ -24,6 +24,12 @@ be done using both constraining the diffusion propagator to positive
 values [Ozarslan2013]_ and analytic Laplacian Regularization (MAPL)
 [Fick2016a]_.
 
+Fitting the model with positivity constraint requires the `cvxopt` package,
+so if you want to run this example, you will need to install it. This can be
+done with ::
+
+  pip install cvxopt
+
 First import the necessary modules:
 """
 
@@ -63,7 +69,7 @@ gtab = gradient_table(bvals=gtab.bvals, bvecs=gtab.bvecs,
                       big_delta=big_delta,
                       small_delta=small_delta)
 data = img.get_data()
-data_small = data[40:65, 50:51, 35:60]
+data_small = data[50:70, 50:70, 8:9]
 
 print('data.shape (%d, %d, %d, %d)' % data.shape)
 
@@ -153,19 +159,19 @@ regularization, positivity constraint or both. We first show the RTOP
 fig = plt.figure(figsize=(10, 5))
 ax1 = fig.add_subplot(1, 3, 1, title=r'RTOP - Laplacian')
 ax1.set_axis_off()
-ind = ax1.imshow(mapfit_laplacian_aniso.rtop()[:, 0, :].T,
+ind = ax1.imshow(mapfit_laplacian_aniso.rtop()[:, :, 0],
                  interpolation='nearest', origin='lower', cmap=plt.cm.gray,
                  vmin=0, vmax=5e7)
 
 ax2 = fig.add_subplot(1, 3, 2, title=r'RTOP - Positivity')
 ax2.set_axis_off()
-ind = ax2.imshow(mapfit_positivity_aniso.rtop()[:, 0, :].T,
+ind = ax2.imshow(mapfit_positivity_aniso.rtop()[:, :, 0],
                  interpolation='nearest', origin='lower', cmap=plt.cm.gray,
                  vmin=0, vmax=5e7)
 
 ax3 = fig.add_subplot(1, 3, 3, title=r'RTOP - Both')
 ax3.set_axis_off()
-ind = ax3.imshow(mapfit_both_aniso.rtop()[:, 0, :].T,
+ind = ax3.imshow(mapfit_both_aniso.rtop()[:, :, 0],
                  interpolation='nearest', origin='lower', cmap=plt.cm.gray,
                  vmin=0, vmax=5e7)
 divider = make_axes_locatable(ax3)
@@ -187,21 +193,21 @@ visualizing the analytic norm of the Laplacian of the fitted signal.
 fig = plt.figure(figsize=(10, 5))
 ax1 = fig.add_subplot(1, 3, 1, title=r'Laplacian norm - Laplacian')
 ax1.set_axis_off()
-ind = ax1.imshow(mapfit_laplacian_aniso.norm_of_laplacian_signal()[:, 0, :].T,
+ind = ax1.imshow(mapfit_laplacian_aniso.norm_of_laplacian_signal()[:, :, 0],
                  interpolation='nearest', origin='lower', cmap=plt.cm.gray,
                  vmin=0, vmax=3
                  )
 
 ax2 = fig.add_subplot(1, 3, 2, title=r'Laplacian norm - Positivity')
 ax2.set_axis_off()
-ind = ax2.imshow(mapfit_positivity_aniso.norm_of_laplacian_signal()[:, 0, :].T,
+ind = ax2.imshow(mapfit_positivity_aniso.norm_of_laplacian_signal()[:, :, 0],
                  interpolation='nearest', origin='lower', cmap=plt.cm.gray,
                  vmin=0, vmax=3
                  )
 
 ax3 = fig.add_subplot(1, 3, 3, title=r'Laplacian norm - Both')
 ax3.set_axis_off()
-ind = ax3.imshow(mapfit_both_aniso.norm_of_laplacian_signal()[:, 0, :].T,
+ind = ax3.imshow(mapfit_both_aniso.norm_of_laplacian_signal()[:, :, 0],
                  interpolation='nearest', origin='lower', cmap=plt.cm.gray,
                  vmin=0, vmax=3
                  )
@@ -229,27 +235,27 @@ and explain their significance.
 fig = plt.figure(figsize=(15, 6))
 ax1 = fig.add_subplot(1, 5, 1, title=r'MSD')
 ax1.set_axis_off()
-ind = ax1.imshow(mapfit_both_aniso.msd()[:, 0, :].T,
+ind = ax1.imshow(mapfit_both_aniso.msd()[:, :, 0],
                  interpolation='nearest', origin='lower', cmap=plt.cm.gray)
 
 ax2 = fig.add_subplot(1, 5, 2, title=r'QIV')
 ax2.set_axis_off()
-ind = ax2.imshow(mapfit_both_aniso.qiv()[:, 0, :].T, interpolation='nearest',
+ind = ax2.imshow(mapfit_both_aniso.qiv()[:, :, 0], interpolation='nearest',
                  origin='lower', cmap=plt.cm.gray)
 
 ax3 = fig.add_subplot(1, 5, 3, title=r'RTOP')
 ax3.set_axis_off()
-ind = ax3.imshow((mapfit_both_aniso.rtop()[:, 0, :]).T,
+ind = ax3.imshow(mapfit_both_aniso.rtop()[:, :, 0],
                  interpolation='nearest', origin='lower', cmap=plt.cm.gray)
 
 ax4 = fig.add_subplot(1, 5, 4, title=r'RTAP')
 ax4.set_axis_off()
-ind = ax4.imshow((mapfit_both_aniso.rtap()[:, 0, :]).T,
+ind = ax4.imshow(mapfit_both_aniso.rtap()[:, :, 0],
                  interpolation='nearest', origin='lower', cmap=plt.cm.gray)
 
 ax5 = fig.add_subplot(1, 5, 5, title=r'RTPP')
 ax5.set_axis_off()
-ind = ax5.imshow(mapfit_both_aniso.rtpp()[:, 0, :].T, interpolation='nearest',
+ind = ax5.imshow(mapfit_both_aniso.rtpp()[:, :, 0], interpolation='nearest',
                  origin='lower', cmap=plt.cm.gray)
 plt.savefig('MAPMRI_maps.png')
 
@@ -302,7 +308,7 @@ mapfit_both_ng = map_model_both_ng.fit(data_small)
 fig = plt.figure(figsize=(10, 6))
 ax1 = fig.add_subplot(1, 3, 1, title=r'NG')
 ax1.set_axis_off()
-ind = ax1.imshow(mapfit_both_ng.ng()[:, 0, :].T, interpolation='nearest',
+ind = ax1.imshow(mapfit_both_ng.ng()[:, :, 0], interpolation='nearest',
                  origin='lower', cmap=plt.cm.gray)
 divider = make_axes_locatable(ax1)
 cax = divider.append_axes("right", size="5%", pad=0.05)
@@ -311,7 +317,7 @@ plt.colorbar(ind, cax=cax)
 
 ax2 = fig.add_subplot(1, 3, 2, title=r'NG perpendicular')
 ax2.set_axis_off()
-ind = ax2.imshow(mapfit_both_ng.ng_perpendicular()[:, 0, :].T,
+ind = ax2.imshow(mapfit_both_ng.ng_perpendicular()[:, :, 0],
                  interpolation='nearest',
                  origin='lower', cmap=plt.cm.gray)
 divider = make_axes_locatable(ax2)
@@ -320,7 +326,7 @@ plt.colorbar(ind, cax=cax)
 
 ax3 = fig.add_subplot(1, 3, 3, title=r'NG parallel')
 ax3.set_axis_off()
-ind = ax3.imshow(mapfit_both_ng.ng_parallel()[:, 0, :].T,
+ind = ax3.imshow(mapfit_both_ng.ng_parallel()[:, :, 0],
                  interpolation='nearest',
                  origin='lower', cmap=plt.cm.gray)
 divider = make_axes_locatable(ax3)
