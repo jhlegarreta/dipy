@@ -160,20 +160,17 @@ fig = plt.figure(figsize=(10, 5))
 ax1 = fig.add_subplot(1, 3, 1, title=r'RTOP - Laplacian')
 ax1.set_axis_off()
 ind = ax1.imshow(mapfit_laplacian_aniso.rtop()[:, :, 0],
-                 interpolation='nearest', origin='lower', cmap=plt.cm.gray,
-                 vmin=0, vmax=5e7)
+                 interpolation='nearest', origin='lower', cmap=plt.cm.gray)
 
 ax2 = fig.add_subplot(1, 3, 2, title=r'RTOP - Positivity')
 ax2.set_axis_off()
 ind = ax2.imshow(mapfit_positivity_aniso.rtop()[:, :, 0],
-                 interpolation='nearest', origin='lower', cmap=plt.cm.gray,
-                 vmin=0, vmax=5e7)
+                 interpolation='nearest', origin='lower', cmap=plt.cm.gray)
 
 ax3 = fig.add_subplot(1, 3, 3, title=r'RTOP - Both')
 ax3.set_axis_off()
 ind = ax3.imshow(mapfit_both_aniso.rtop()[:, :, 0],
-                 interpolation='nearest', origin='lower', cmap=plt.cm.gray,
-                 vmin=0, vmax=5e7)
+                 interpolation='nearest', origin='lower', cmap=plt.cm.gray)
 divider = make_axes_locatable(ax3)
 cax = divider.append_axes("right", size="5%", pad=0.05)
 plt.colorbar(ind, cax=cax)
