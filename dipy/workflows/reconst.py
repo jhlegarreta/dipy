@@ -24,6 +24,7 @@ from dipy.reconst.shm import CsaOdfModel
 from dipy.workflows.workflow import Workflow
 from dipy.reconst.dki import DiffusionKurtosisModel, split_dki_param
 from dipy.reconst.ivim import IvimModel
+from dipy.reconst.rumba import RumbaSDModel
 
 from dipy.reconst import mapmri
 
@@ -1032,3 +1033,239 @@ class ReconstIvimFlow(Workflow):
         ivimfit = ivimmodel.fit(data, mask)
 
         return ivimfit, gtab
+
+
+class ReconstRUMBAFlow(Workflow):
+    @classmethod
+    def get_short_name(cls):
+        return 'rumba'
+
+    def run(self, input_files, bvalues_files, bvectors_files, mask_files,
+            b0_threshold=50.0, bvecs_tol=0.01, roi_center=None, roi_radii=10,
+            fa_thr=0.7, frf=None, extract_pam_values=False, sh_order=8,
+            odf_to_sh_order=8, parallel=False, num_processes=None,
+
+            wm_response=None,
+            gm_response=None, csf_response=None, n_iter=600,
+            recon_type='smf', n_coils=1, R=1, voxelwise=True,
+            use_tv=False, sphere=None, verbose=False,
+
+            out_dir='',
+            out_pam='peaks.pam5', out_shm='shm.nii.gz',
+            out_peaks_dir='peaks_dirs.nii.gz',
+            out_peaks_values='peaks_values.nii.gz',
+            out_peaks_indices='peaks_indices.nii.gz', out_gfa='gfa.nii.gz'):
+        """Robust and Unbiased Model-BAsed Spherical Deconvolution (RUMBA-SD)
+        [1]_.
+
+        Parameters
+        ----------
+        input_files : string
+            Path to the input volumes. This path may contain wildcards to
+            process multiple inputs at once.
+        bvalues_files : string
+            Path to the bvalues files. This path may contain wildcards to use
+            multiple bvalues files at once.
+        bvectors_files : string
+            Path to the bvectors files. This path may contain wildcards to use
+            multiple bvectors files at once.
+        mask_files : string
+            Path to the input masks. This path may contain wildcards to use
+            multiple masks at once. (default: No mask used)
+
+        b0_threshold : float, optional
+            Threshold used to find b0 volumes.
+        bvecs_tol : float, optional
+            Bvecs should be unit vectors.
+        roi_center : variable int, optional
+            Center of ROI in data. If center is None, it is assumed that it is
+            the center of the volume with shape `data.shape[:3]`.
+        roi_radii : int or array-like, optional
+            radii of cuboid ROI in voxels.
+        fa_thr : float, optional
+            FA threshold for calculating the response function.
+        frf : variable float, optional
+            Fiber response function can be for example inputed as 15 4 4
+            (from the command line) or [15, 4, 4] from a Python script to be
+            converted to float and multiplied by 10**-4 . If None
+            the fiber response function will be computed automatically.
+        extract_pam_values : bool, optional
+            Save or not to save pam volumes as single nifti files.
+        sh_order : int, optional
+            Spherical harmonics order used in the CSA fit.
+        odf_to_sh_order : int, optional
+            Spherical harmonics order used for peak_from_model to compress
+            the ODF to spherical harmonics coefficients.
+        parallel : bool, optional
+            Whether to use parallelization in peak-finding during the
+            calibration procedure.
+        num_processes : int, optional
+            If `parallel` is True, the number of subprocesses to use
+            (default multiprocessing.cpu_count()). If < 0 the maximal number
+            of cores minus ``num_processes + 1`` is used (enter -1 to use as
+            many cores as possible). 0 raises an error.
+
+        out_dir : string, optional
+            Output directory. (default current directory)
+        out_pam : string, optional
+            Name of the peaks volume to be saved.
+        out_shm : string, optional
+            Name of the spherical harmonics volume to be saved.
+        out_peaks_dir : string, optional
+            Name of the peaks directions volume to be saved.
+        out_peaks_values : string, optional
+            Name of the peaks values volume to be saved.
+        out_peaks_indices : string, optional
+            Name of the peaks indices volume to be saved.
+        out_gfa : string, optional
+            Name of the generalized FA volume to be saved.
+
+
+        References
+        ----------
+        .. [1] Canales-Rodríguez, E. J., Daducci, A., Sotiropoulos, S. N.,
+               Caruyer, E., Aja-Fernández, S., Radua, J., Mendizabal, J. M. Y.,
+               Iturria-Medina, Y., Melie-García, L., Alemán-Gómez, Y.,
+               Thiran, J.-P., Sarró, S., Pomarol-Clotet, E., & Salvador, R.
+               (2015). Spherical Deconvolution of Multichannel Diffusion MRI
+               Data with Non-Gaussian Noise Models and Spatial Regularization.
+               PLOS ONE, 10(10), e0138910.
+               https://doi.org/10.1371/journal.pone.0138910
+        """
+
+        io_it = self.get_io_iterator()
+
+        for (dwi, bval, bvec, maskfile, opam, oshm, opeaks_dir, opeaks_values,
+             opeaks_indices, ogfa) in io_it:
+
+            # Read the data
+            logging.info('Loading {0}'.format(dwi))
+            data, affine = load_nifti(dwi)
+
+            bvals, bvecs = read_bvals_bvecs(bval, bvec)
+
+            if b0_threshold < bvals.min():
+                warn("b0_threshold (value: {0}) is too low, increase your "
+                     "b0_threshold. It should be higher than the first b0 value "
+                     "({1}).".format(b0_threshold, bvals.min()))
+
+            gtab = gradient_table(
+                bvals, bvecs, b0_threshold=b0_threshold, atol=bvecs_tol)
+
+            mask_vol = load_nifti_data(maskfile).astype(bool)
+
+            # ToDo
+            # Check if this should rather be default_sphere (repulsion724)
+            from dipy.data import get_sphere
+            sphere = get_sphere('symmetric362')
+
+            # ToDo
+            # Log the responses if computed internally
+
+            # Compute the FRF
+            if frf_estimation_mode == "estimate_local_brain_region":
+                # ToDo
+                # Should this be done for each tissue? How do we constrain the
+                # FA with 2 thresholds for CSF and GM??
+                response, _ = auto_response_ssst(
+                    gtab, data, roi_radii=roi_radii, fa_thr=fa_thr)
+            elif frf_estimation_mode == "recursive":
+                from dipy.reconst.csdeconv import recursive_response
+                from dipy.segment.mask import median_otsu
+                # Should all the below be added as params ?
+                b0_mask, mask = median_otsu(data, median_radius=2,
+                                            numpass=1, vol_idx=np.arange(10))
+                # ToDo
+                # Should this be done for each tissue?
+                rec_response = recursive_response(gtab, data, mask=mask,
+                                                  sh_order=8,
+                                                  peak_thr=0.01, init_fa=0.08,
+                                                  init_trace=0.0021, iter=4,
+                                                  convergence=0.001,
+                                                  parallel=True,
+                                                  num_processes=2, sphere=sphere)
+            elif frf_estimation_mode == "default":
+                # ToDo
+                # Do not re-define these: build a kwargs with the above
+                wm_response = np.array([1.7e-3, 0.2e-3, 0.2e-3])
+                gm_response = 0.8e-3
+                csf_response = 3.0e-3
+
+            # fODF reconstruction
+            logging.info('RUMBA computation started.')
+            rumba = RumbaSDModel(
+                gtab, wm_response=wm_response, gm_response=gm_response,
+                csf_response=csf_response, n_iter=n_iter,
+                recon_type=recon_type, n_coils=n_coils, R=R,
+                voxelwise=voxelwise, use_tv=use_tv, sphere=sphere,
+                verbose=verbose)
+
+            # ToDo
+            # Check if the computation is finished here or if it is done in the
+            # fit call
+            logging.info('RUMBA computation completed.')
+
+            # ToDo
+            # Should we save the fODFs ??
+            # rumba_fit = rumba.fit(data)
+            # odf = rumba_fit.odf()
+            # Combine the fODF and the isotropic components
+            # combined_fODFs = rumba_fit.combined_odf_iso
+            # ToDo
+            # Save the volume fraction maps ??
+            # f_iso = rumba_fit.f_iso
+            # f_wm = rumba_fit.f_wm
+
+            # For peak detection, peaks_from_model cannot be used as it
+            # doesn’t support global fitting approaches. Instead, we'll
+            # compute our peaks using a for loop.
+            if not voxelwise:
+                # ToDo
+                # Make the below parameters ??
+                rumba_peaks = peaks_from_model(
+                    model=rumba, data=data, sphere=peaks_sphere,
+                    relative_peak_threshold=.5, min_separation_angle=25, mask=mask_vol,
+                    return_sh=True, sh_order=sh_order, normalize_peaks=True,
+                    parallel=parallel, num_processes=num_processes)
+            else:
+                from dipy.direction import peak_directions
+                odf = rumba_fit.odf()
+                shape = odf.shape[:3]
+                # ToDo
+                # Make this a parameter
+                npeaks = 5  # maximum number of peaks returned for a given voxel
+                peak_dirs = np.zeros((shape + (npeaks, 3)))
+                peak_values = np.zeros((shape + (npeaks,)))
+
+                for idx in np.ndindex(shape):  # iterate through each voxel
+                    # Get peaks of odf
+                    # ToDo
+                    # Make the below parameters ??
+                    direction, pk, _ = peak_directions(odf[idx], sphere,
+                                                       relative_peak_threshold=0.5,
+                                                       min_separation_angle=25)
+
+                    # Calculate peak metrics
+                    if pk.shape[0] != 0:
+                        n = min(npeaks, pk.shape[0])
+                        peak_dirs[idx][:n] = direction[:n]
+                        peak_values[idx][:n] = pk[:n]
+
+            rumba_peaks.affine = affine
+
+            save_peaks(opam, rumba_peaks)
+
+            logging.info('CSD computation completed.')
+
+            if extract_pam_values:
+                peaks_to_niftis(rumba_peaks, oshm, opeaks_dir, opeaks_values,
+                                opeaks_indices, ogfa, reshape_dirs=True)
+
+            dname_ = os.path.dirname(opam)
+            if dname_ == '':
+                logging.info('Pam5 file saved in current directory')
+            else:
+                logging.info(
+                        'Pam5 file saved in {0}'.format(dname_))
+
+            return io_it
