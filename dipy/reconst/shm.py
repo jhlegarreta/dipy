@@ -296,17 +296,17 @@ def real_sh_tournier_from_index(m, n, theta, phi, legacy=True):
            framework for medical image processing and visualisation.
            NeuroImage. 2019 Nov 15;202:116-137.
     """
-    # In the m < 0 case, Tournier basis considers |m|
-    sh = spherical_harmonics(np.abs(m), n, phi, theta)
-    real_sh = np.where(m < 0, sh.imag, sh.real)
-
-    if not legacy:
-        # The Tournier basis from MRtrix3 is normalized
-        real_sh *= np.where(m == 0, 1., np.sqrt(2))
-    else:
+    if legacy:
         warn(tournier07_legacy_msg, category=PendingDeprecationWarning)
+        norm_factor = 1
+    else:
+        # The Tournier basis from MRtrix3 is normalized
+        norm_factor = np.sqrt(2)
 
-    return real_sh
+    # In the m < 0 case, Tournier basis considers |m|
+    degree_val = np.abs(m)
+    pick_condition = m < 0
+    return _compute_real_sh(degree_val, n, phi, theta, pick_condition, norm_factor)
 
 
 def real_sh_descoteaux_from_index(m, n, theta, phi, legacy=True):
@@ -349,15 +349,14 @@ def real_sh_descoteaux_from_index(m, n, theta, phi, legacy=True):
     if legacy:
         # In the case where m < 0, legacy descoteaux basis considers |m|
         warn(descoteaux07_legacy_msg, category=PendingDeprecationWarning)
-        sh = spherical_harmonics(np.abs(m), n, phi, theta)
+        degree_val = np.abs(m)
     else:
         # In the cited paper, the basis is defined without the absolute value
-        sh = spherical_harmonics(m, n, phi, theta)
+        degree_val = m
 
-    real_sh = np.where(m > 0, sh.imag, sh.real)
-    real_sh *= np.where(m == 0, 1., np.sqrt(2))
-
-    return real_sh
+    norm_factor = np.sqrt(2)
+    pick_condition = m > 0
+    return _compute_real_sh(degree_val, n, phi, theta, pick_condition, norm_factor)
 
 
 def real_sh_tournier(sh_order, theta, phi,
@@ -1516,12 +1515,7 @@ def convert_sh_from_legacy(sh_coeffs, sh_basis, full_basis=False):
 
     m, n = sph_harm_ind_list(sh_order, full_basis=full_basis)
 
-    if sh_basis == 'descoteaux07':
-        out_sh_coeffs = sh_coeffs * np.where(m < 0, (-1.)**m, 1.)
-    elif sh_basis == 'tournier07':
-        out_sh_coeffs = sh_coeffs * np.where(m == 0, 1., 1./np.sqrt(2))
-    else:
-        raise ValueError("Invalid basis name.")
+    out_sh_coeffs = _convert_sh_direction(sh_coeffs, m, sh_basis, 'from_legacy')
 
     return out_sh_coeffs
 
@@ -1567,11 +1561,131 @@ def convert_sh_to_legacy(sh_coeffs, sh_basis, full_basis=False):
 
     m, n = sph_harm_ind_list(sh_order, full_basis=full_basis)
 
-    if sh_basis == 'descoteaux07':
-        out_sh_coeffs = sh_coeffs * np.where(m < 0, (-1.)**m, 1.)
-    elif sh_basis == 'tournier07':
-        out_sh_coeffs = sh_coeffs * np.where(m == 0, 1., np.sqrt(2))
-    else:
-        raise ValueError("Invalid basis name.")
+    out_sh_coeffs = _convert_sh_direction(sh_coeffs, m, sh_basis, 'to_legacy')
 
     return out_sh_coeffs
+
+
+def _convert_sh_direction(sh_coeffs, m, sh_basis, direction):
+    """Convert the SH coefficients of a given basis either to their legacy
+     representation or from their legacy representation.
+
+    Parameters
+    ----------
+    sh_coeffs : list
+        Converted SH coefficients
+    m : degree
+        SH degree.
+    sh_basis : str
+        Name of the SH basis. Can be one of ['descoteaux07', 'tournier07'].
+    direction : str
+        Direction for the SH basis change. Can be one of
+        ['from_legacy', 'to_legacy'].
+
+    Returns
+    -------
+    out_sh_coeffs : list
+        Converted SH coefficients.
+    """
+
+    _check_basis(sh_basis)
+    _check_sh_basis_change_direction(direction)
+
+    if sh_basis == 'descoteaux07':
+        condition = m < 0
+        x = (-1.)**m
+        y = 1.
+    else:
+        condition = m == 0
+        factor = np.sqrt(2)
+        x = 1.
+        if direction == 'to_legacy':
+            y = factor
+        else:
+            y = 1. / factor
+
+    out_sh_coeffs = sh_coeffs * np.where(condition, x, y)
+
+    return out_sh_coeffs
+
+
+def _normalize(sh_coeffs, m):
+    sh_coeffs *= np.where(m == 0, 1., np.sqrt(2))
+    return sh_coeffs
+
+
+def _compose_piecewise_sh_coeffs(sh, m, sh_basis):
+
+    _check_basis(sh_basis)
+
+    if sh_basis == 'descoteaux07':
+        condition = m > 0
+    else:
+        condition = m < 0
+
+    sh_coeffs = np.where(condition, sh.imag, sh.real)
+    return _normalize(sh_coeffs, m)
+
+
+def _check_basis(sh_basis):
+    """Check whether the SH basis is supported. Raises an error if not
+    supported.
+
+    Parameters
+    ----------
+    sh_basis : str
+        Name of the SH basis. Can be one of ['descoteaux07', 'tournier07'].
+    """
+
+    if sh_basis not in ['descoteaux07', 'tournier07']:
+        raise ValueError("Invalid basis name.")
+
+
+def _check_sh_basis_change_direction(direction):
+    """Check whether the SH basis change direction is supported. Raises an
+    error if not supported.
+
+    Parameters
+    ----------
+    direction : str
+        Direction for the SH basis change. Can be one of
+        ['from_legacy', 'to_legacy'].
+    """
+
+    if direction not in ['from_legacy', 'to_legacy']:
+        raise ValueError("Invalid direction.")
+
+
+def _compute_real_sh(degree_val, order, phi, theta, pick_condition, norm_factor):
+    """Compute the real SH $Y^m_n$ sampled at ``theta`` and ``phi``. The
+    returned SH values are composed piecewise picking the imaginary or real
+    parts of the SH according to the ``pick_condition`` values (if True,
+    the imaginary parts are picked), and are normalized  according to the
+    ``norm_factor`` value.
+
+    Parameters
+    ----------
+    degree_val : int
+        Degree value.
+    order : int
+        Order.
+    phi : float [0, pi]
+        The polar (colatitudinal) coordinate.
+    theta : float [0, 2*pi]
+        The azimuthal (longitudinal) coordinate.
+    pick_condition : list
+        Booleans for composing the piecewise SH values.
+    norm_factor : float
+        Normalization factor.
+
+    Returns
+    -------
+    real_sh : list
+        The real SH $Y^m_n$ sampled at ``theta`` and ``phi``.
+    """
+
+    sh = spherical_harmonics(degree_val, order, phi, theta)
+    real_sh = np.where(pick_condition, sh.imag, sh.real)
+    real_sh *= np.where(m == 0, 1., norm_factor)
+
+    return real_sh
