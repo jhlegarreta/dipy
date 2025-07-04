@@ -1,5 +1,5 @@
 import os
-from os.path import join as pjoin
+from pathlib import Path
 from tempfile import TemporaryDirectory
 import time
 
@@ -70,4 +70,4 @@ def test_missing_file():
 
     dummyflow = TestMissingFile()
     with TemporaryDirectory() as tempdir:
-        npt.assert_raises(OSError, dummyflow.run, pjoin(tempdir, "dummy_file.txt"))
+        npt.assert_raises(OSError, dummyflow.run, Path(tempdir) / "dummy_file.txt")
