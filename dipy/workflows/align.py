@@ -312,9 +312,9 @@ class ImageRegistrationFlow(Workflow):
         """
         Parameters
         ----------
-        static_image_files : string
+        static_image_files : string or Path
             Path to the static image file.
-        moving_image_files : string
+        moving_image_files : string or Path
             Path to the moving image file.
         transform : string, optional
             ``'com'``: center of mass; ``'trans'``: translation; ``'rigid'``:
@@ -353,7 +353,7 @@ class ImageRegistrationFlow(Workflow):
             `moving` input volume. From the command line use something like
             `3 4 5 6`. From script use something like `[3, 4, 5, 6]`. This
             input is required for 4D volumes.
-        out_dir : string, optional
+        out_dir : string or Path, optional
             Directory to save the transformed image and the affine matrix
         out_moved : string, optional
             Name for the saved transformed image.
@@ -479,12 +479,12 @@ class ApplyTransformFlow(Workflow):
         """
         Parameters
         ----------
-        static_image_files : string
+        static_image_files : string or Path
             Path of the static image file.
-        moving_image_files : string
+        moving_image_files : string or Path
             Path of the moving image(s). It can be a single image or a
             folder containing multiple images.
-        transform_map_file : string
+        transform_map_file : string or Path
             For the affine case, it should be a text(``*.txt``) file containing
             the affine matrix. For the diffeomorphic case,
             it should be a nifti file containing the mapping displacement
@@ -492,7 +492,7 @@ class ApplyTransformFlow(Workflow):
         transform_type : string, optional
             Select the transformation type to apply between 'affine' or
             'diffeomorphic'.
-        out_dir : string, optional
+        out_dir : string or Path, optional
             Directory to save the transformed files.
         out_file : string, optional
             Name of the transformed file.
@@ -600,11 +600,11 @@ class SynRegistrationFlow(Workflow):
         """
         Parameters
         ----------
-        static_image_files : string
+        static_image_files : string or Path
             Path of the static image file.
-        moving_image_files : string
+        moving_image_files : string or Path
             Path to the moving image file.
-        prealign_file : string, optional
+        prealign_file : string or Path, optional
             The text file containing pre alignment information via an affine matrix.
         inv_static : boolean, optional
             Apply the inverse mapping to the static image.
@@ -666,7 +666,7 @@ class SynRegistrationFlow(Workflow):
         inv_tol : float, optional
             the displacement field inversion algorithm will stop iterating
             when the inversion error falls below this threshold.
-        out_dir : string, optional
+        out_dir : string or Path, optional
             Directory to save the transformed files.
         out_warped : string, optional
             Name of the warped file.
@@ -821,13 +821,13 @@ class MotionCorrectionFlow(Workflow):
         """
         Parameters
         ----------
-        input_files : string
+        input_files : string or Path
             Path to the input volumes. This path may contain wildcards to
             process multiple inputs at once.
-        bvalues_files : string
+        bvalues_files : string or Path
             Path to the bvalues files. This path may contain wildcards to use
             multiple bvalues files at once.
-        bvectors_files : string
+        bvectors_files : string or Path
             Path to the bvectors files. This path may contain wildcards to use
             multiple bvectors files at once.
         b0_threshold : float, optional
@@ -835,7 +835,7 @@ class MotionCorrectionFlow(Workflow):
         bvecs_tol : float, optional
             Threshold used to check that norm(bvec) = 1 +/- bvecs_tol
             b-vectors are unit vectors
-        out_dir : string, optional
+        out_dir : string or Path, optional
             Directory to save the transformed image and the affine matrix.
         out_moved : string, optional
             Name for the saved transformed image.
@@ -908,9 +908,9 @@ class BundleWarpFlow(Workflow):
 
         Parameters
         ----------
-        static_file : string
+        static_file : string or Path
             Path to the static (reference) .trk file.
-        moving_file : string
+        moving_file : string or Path
             Path to the moving (target to be registered) .trk file.
         dist : string, optional
             Path to the precalculated distance matrix file.
@@ -929,7 +929,7 @@ class BundleWarpFlow(Workflow):
             method.
         affine : boolean, optional
             If False, use rigid registration as starting point. (default True)
-        out_dir : string, optional
+        out_dir : string or Path, optional
             Output directory.
         out_linear_moved : string, optional
             Filename of linearly moved bundle.
